@@ -43,7 +43,11 @@ def ensure_admin():
     if cursor.fetchone()[0] == 0:
         cursor.execute("INSERT INTO usuarios (username, password_hash, nombre) VALUES (?, ?, ?)",
                        ('admin', generate_password_hash('123456'), 'Administrador'))
-        conn.commit()
+    else:
+        # Forzamos la actualización de la contraseña del administrador a '123456'
+        cursor.execute("UPDATE usuarios SET password_hash = ? WHERE username = ?",
+               (generate_password_hash('123456'), 'admin'))
+    conn.commit()
     conn.close()
 
 init_db()
@@ -65,13 +69,13 @@ PAGE_LOGIN = """
 <head>
   <meta charset="UTF-8" />
   <title>Iniciar session</title>
-  /static/styles.css
+  <link rel="stylesheet" href="/static/styles.css">
 </head>
 <body>
   <header class="header">
     <div class="brand">Sistema de Movimientos CCTV & Contabilidad</div>
     <nav class="nav">
-      {{ url_for(Iniciar session</a>
+      <a href="{{ url_for('login') }}">Iniciar session</a>
     </nav>
   </header>
   <main class="container">
@@ -110,7 +114,7 @@ PAGE_INDEX = """
 <head>
   <meta charset="UTF-8" />
   <title>Registro y Reporte</title>
-  /static/styles.css
+  <link rel="stylesheet" href="/static/styles.css">
 </head>
 <body>
   <header class="header">
@@ -118,9 +122,9 @@ PAGE_INDEX = """
     <nav class="nav">
       {% if session.get('user') %}
         <span>Hola, {{ session.get('user_nombre') or session.get('user') }}</span>
-        {{ url_for(Cerrar session</a>
+        <a href="{{ url_for('logout') }}">Cerrar session</a>
       {% else %}
-        {{ url_for(Iniciar session</a>
+        <a href="{{ url_for('login') }}">Iniciar session</a>
       {% endif %}
     </nav>
   </header>
@@ -147,8 +151,8 @@ PAGE_INDEX = """
       <div class="panel-header">
         <h2>Reporte de Movimientos</h2>
         <div class="actions">
-          /export/csvExportar CSV</a>
-          /export/pdfExportar PDF</a>
+          <a href="/export/csv">Exportar CSV</a>
+          <a href="/export/pdf">Exportar PDF</a>
         </div>
       </div>
       <form id="filtrosForm" class="filters-grid">
@@ -185,8 +189,10 @@ def index():
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     if request.method == 'POST':
-        username = request.form.get('username').strip()
-        password = request.form.get('password')
+        username = request.form.get('username', '').strip()
+        password = request.form.get('password', '')
+        if not username or not password:
+            return render_template_string(PAGE_LOGIN, error='Usuario y contraseña son requeridos', current_year=datetime.datetime.now().year)
         conn = sqlite3.connect(DB_NAME)
         cursor = conn.cursor()
         cursor.execute("SELECT id, username, password_hash, nombre FROM usuarios WHERE username = ?", (username,))
